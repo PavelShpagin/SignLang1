@@ -7,6 +7,7 @@ from matplotlib.image import imread
 import numpy as np
 import os
 
+import sys
 BOX_COLOR = 'black'
 plt.rcParams['font.family'] = 'Segoe UI Emoji'
 fig, axes = plt.subplots(1, 3, figsize=(12, 5))
@@ -18,37 +19,35 @@ def add_gesture(ax, emoji, center, fontsize, w_label, h_label, title):
     ax.axis('off')
     return t, (w_label, h_label, title)
 
-# Baseline for vertical alignment of boxes
-Y_BASELINE = 2
-
 # FIST (w/h = 2.0, ratio range 1.5-2.5)
 ax1 = axes[0]
 ax1.set_xlim(0, 10)
-ax1.set_ylim(0, 25) # Uniform Y limits to help alignment
+ax1.set_ylim(0, 10)
 t1, (w1, h1, title1) = add_gesture(ax1, '\U0001F44A', (5, 5), 100, '8', '4', 'FIST')
 
 # PALM (w/h = 1.0, ratio range 0.9-1.1)
 ax2 = axes[1]
 ax2.set_xlim(0, 22)
-ax2.set_ylim(0, 25)
-t2, (w2, h2, title2) = add_gesture(ax2, '\U0001F590', (11, 10), 140, '16', '16', 'PALM')
+ax2.set_ylim(0, 26)
+t2, (w2, h2, title2) = add_gesture(ax2, '\U0001F590', (11, 13), 140, '16', '16', 'PALM')
 
 def get_glyph_image(char, fontsize=200):
-    fig_tmp, ax_tmp = plt.subplots(figsize=(4, 4))
-    ax_tmp.text(0.5, 0.5, char, fontsize=fontsize, ha='center', va='center', fontfamily='Segoe UI Emoji')
-    ax_tmp.set_xlim(0, 1)
-    ax_tmp.set_ylim(0, 1)
-    ax_tmp.axis('off')
+    fig, ax = plt.subplots(figsize=(4, 4))
+    ax.text(0.5, 0.5, char, fontsize=fontsize, ha='center', va='center', fontfamily='Segoe UI Emoji')
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.axis('off')
     
     from io import BytesIO
     buf = BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0)
-    plt.close(fig_tmp)
+    plt.close(fig)
     
     buf.seek(0)
     img = imread(buf)
     
     # Crop to content
+    # Assuming white background (1,1,1) or transparent
     if img.shape[2] == 4:
         alpha = img[:, :, 3]
         rows = np.any(alpha > 0, axis=1)
@@ -67,21 +66,24 @@ def get_glyph_image(char, fontsize=200):
 # VICTORY SIGN - use image-based approach for perfect centering
 ax3 = axes[2]
 ax3.set_xlim(0, 20)
-ax3.set_ylim(0, 25)
+ax3.set_ylim(0, 28)
 ax3.axis('off')
 
 glyph_img = get_glyph_image('\u270C') # Use standard Victory Hand
+# Center at (10, 14). Box is 10x20.
 h_img, w_img = glyph_img.shape[:2]
 aspect = h_img / w_img
-
+    
 # Victory sign box (match labels and report)
 box_w = 10.0
-box_h = 12.0
+box_h = 16.0
 
-# Center the Victory sign inside its box
-cx, cy = 10.0, 8.0 # Adjusted for common baseline
-x0, x1 = cx - box_w / 2.3, cx + box_w / 2.3
-y0, y1 = cy + box_h / 2, cy - box_h / 2
+# Center: x=10, y=14
+cx, cy = 10.0, 14.0
+x0 = cx - box_w / 1.3
+x1 = cx + box_w / 1.3
+y0 = cy + box_h / 2
+y1 = cy - box_h / 2
 
 ax3.imshow(glyph_img, extent=[x0, x1, y1, y0], aspect='equal', interpolation='bilinear')
 t3, w3, h3, title3 = None, '10', '12', 'VICTORY SIGN'
@@ -93,13 +95,16 @@ renderer = fig.canvas.get_renderer()
 def draw_tight_box(ax, text_obj, w_label, h_label, title):
     bbox = text_obj.get_tightbbox(renderer=renderer) or text_obj.get_window_extent(renderer=renderer)
     bbox_data = bbox.transformed(ax.transData.inverted())
-    w, h = bbox_data.width, bbox_data.height
-    
-    # Force baseline for all boxes
-    x0 = bbox_data.x0 + w * 0.12
-    y0 = Y_BASELINE
-    w -= 2 * (w * 0.12)
-    h -= 2 * (h * 0.05)
+    x0, y0 = bbox_data.x0, bbox_data.y0
+    w = bbox_data.width
+    h = bbox_data.height
+
+    w_inset = w * 0.12
+    h_inset = h * 0.05
+    x0 += w_inset
+    y0 += h_inset
+    w -= 2 * w_inset
+    h -= 2 * h_inset
 
     rect = patches.Rectangle((x0, y0), w, h, fill=False, edgecolor=BOX_COLOR, linewidth=4, linestyle='--')
     ax.add_patch(rect)
@@ -117,9 +122,9 @@ def draw_tight_box(ax, text_obj, w_label, h_label, title):
 
 
 def draw_fixed_box(ax, x_center, y_center, w, h, w_label, h_label, title):
-    # Calculate corner from baseline
+    # Calculate corner from center and dimensions
     x0 = x_center - w/2
-    y0 = Y_BASELINE
+    y0 = y_center - h/2
     
     rect = patches.Rectangle((x0, y0), w, h, fill=False, edgecolor=BOX_COLOR, linewidth=4, linestyle='--')
     ax.add_patch(rect)
@@ -132,21 +137,20 @@ def draw_fixed_box(ax, x_center, y_center, w, h, w_label, h_label, title):
     x_arrow = x0 + w + pad
     ax.annotate('', xy=(x_arrow, y0), xytext=(x_arrow, y0 + h), arrowprops=dict(arrowstyle='<->', color=BOX_COLOR, lw=2))
     ax.text(x_arrow + 0.4, y0 + h/2, f'H = {h_label} cm', ha='left', va='center', fontsize=14, color=BOX_COLOR, fontweight='bold')
+    # Title is drawn separately for consistent alignment across subplots
 
 draw_tight_box(ax1, t1, w1, h1, title1)
 draw_tight_box(ax2, t2, w2, h2, title2)
-draw_fixed_box(ax3, 10, 8, box_w, box_h, w3, h3, title3)
+draw_fixed_box(ax3, 10, 14, box_w, box_h, w3, h3, title3)
 
-fig.subplots_adjust(left=0.08, right=0.96, bottom=0.12, top=0.85, wspace=0.25)
+fig.subplots_adjust(left=0.08, right=0.96, bottom=0.12, top=0.9, wspace=0.25)
 
-# Align titles using fig.text at a fixed vertical coordinate
-y_title = 0.92
+# Draw titles at identical vertical positions for readability
 for ax, title in zip(axes, [title1, title2, title3]):
-    pos = ax.get_position()
-    fig.text(pos.x0 + pos.width/2, y_title, title, ha='center', va='bottom', **TITLE_STYLE)
+    ax.text(0.5, 1.05, title, transform=ax.transAxes, ha='center', va='bottom', **TITLE_STYLE)
 
 plt.savefig('box_examples.png', dpi=300, bbox_inches='tight', pad_inches=0.2)
 plt.close()
-import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 print("Розміри: КУЛАК 8x4cm (w/h=2.0), ДОЛОНЯ 16x16cm (w/h=1.0), ЗНАК ПЕРЕМОГИ 10x12cm (h/w=1.2)")
