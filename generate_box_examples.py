@@ -72,28 +72,17 @@ glyph_img = get_glyph_image('\u270C') # Use standard Victory Hand
 # Center at (10, 14). Box is 10x20.
 h_img, w_img = glyph_img.shape[:2]
 aspect = h_img / w_img
-
+    
 # Victory sign box (match labels and report)
 box_w = 10.0
-box_h = 12.0
-
-# Fit glyph naturally inside the box (no stretching)
-pad_frac = 0.05
-max_w = box_w * (1 - 2 * pad_frac)
-max_h = box_h * (1 - 2 * pad_frac)
-
-target_w = max_w
-target_h = target_w * aspect
-if target_h > max_h:
-    target_h = max_h
-    target_w = target_h / aspect
+box_h = 16.0
 
 # Center: x=10, y=14
 cx, cy = 10.0, 14.0
-x0 = cx - target_w / 2
-x1 = cx + target_w / 2
-y0 = cy + target_h / 2
-y1 = cy - target_h / 2
+x0 = cx - box_w / 1.3
+x1 = cx + box_w / 1.3
+y0 = cy + box_h / 2
+y1 = cy - box_h / 2
 
 ax3.imshow(glyph_img, extent=[x0, x1, y1, y0], aspect='equal', interpolation='bilinear')
 t3, w3, h3, title3 = None, '10', '12', 'VICTORY SIGN'
