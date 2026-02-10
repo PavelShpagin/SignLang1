@@ -89,6 +89,55 @@ for k in [1, 3, 5, 7]:
     results.append((k, acc))
     print(f"k={k}: Точність = {acc*100:.1f}%")
 
+def generate_class_with_rng(rng_obj, n, cw, ch, sw, sh):
+    return [(rng_obj.gauss(cw, sw), rng_obj.gauss(ch, sh)) for _ in range(n)]
+
+def evaluate_knn(train_X, train_y, test_X, test_y, k_values):
+    out = []
+    for k in k_values:
+        correct = 0
+        for i, p in enumerate(test_X):
+            if knn_predict(train_X, train_y, p, k) == test_y[i]:
+                correct += 1
+        out.append((k, correct / len(test_y)))
+    return out
+
+print("\n" + "=" * 60)
+print("Експериментальна перевірка на окремих тестових даних")
+print("=" * 60)
+
+# Experiment 1: 2 classes
+train_rng = RNG(1001)
+test_rng = RNG(2002)
+train_f = generate_class_with_rng(train_rng, 60, 8, 4, 0.8, 0.9)
+train_p = generate_class_with_rng(train_rng, 60, 16, 16, 1.5, 1.8)
+test_f = generate_class_with_rng(test_rng, 30, 8, 4, 0.8, 0.9)
+test_p = generate_class_with_rng(test_rng, 30, 16, 16, 1.5, 1.8)
+
+train2_X = train_f + train_p
+train2_y = [0] * len(train_f) + [1] * len(train_p)
+test2_X = test_f + test_p
+test2_y = [0] * len(test_f) + [1] * len(test_p)
+
+res2 = evaluate_knn(train2_X, train2_y, test2_X, test2_y, [1, 3, 5, 7])
+for k, acc in res2:
+    print(f"[2 класи] k={k}: точність = {acc*100:.1f}%")
+
+# Experiment 2: 3 classes (victory added to training and test)
+train_rng3 = RNG(3003)
+test_rng3 = RNG(4004)
+train_v = generate_class_with_rng(train_rng3, 60, 10, 12, 1.5, 2.0)
+test_v = generate_class_with_rng(test_rng3, 30, 10, 12, 1.5, 2.0)
+
+train3_X = train_f + train_p + train_v
+train3_y = [0] * len(train_f) + [1] * len(train_p) + [2] * len(train_v)
+test3_X = test_f + test_p + test_v
+test3_y = [0] * len(test_f) + [1] * len(test_p) + [2] * len(test_v)
+
+res3 = evaluate_knn(train3_X, train3_y, test3_X, test3_y, [1, 3, 5, 7])
+for k, acc in res3:
+    print(f"[3 класи] k={k}: точність = {acc*100:.1f}%")
+
 # CELL 5
 fig, ax = plt.subplots(figsize=(8, 6))
 x_min, x_max = min(p[0] for p in X) - 2, max(p[0] for p in X) + 2
@@ -115,7 +164,7 @@ plt.close()
 
 # CELL 6
 rng3 = RNG(777)
-# Victory sign: updated to match the 10x12cm illustrative box
+# Victory sign: 10x12cm illustrative box
 victory_data = [(rng3.gauss(10, 1.5), rng3.gauss(12, 2.0)) for _ in range(30)]
 
 fig, ax = plt.subplots(figsize=(8, 6))
