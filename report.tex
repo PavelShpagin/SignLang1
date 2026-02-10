@@ -1,0 +1,137 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setdefaultlanguage{ukrainian}
+\setmainfont{Times New Roman}
+\setsansfont{Arial}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf}
+
+\geometry{margin=2.5cm}
+
+\title{Аналіз жестів руки: k-NN та k-means}
+\author{Лабораторна робота}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Постановка задачі}
+
+\textbf{Об'єкт дослідження:} гіпотетичне зображення руки.
+
+\textbf{Вектор ознак:} $(w, h)$ -- ширина та висота долоні (см).
+
+\textbf{Класи:} Кулак, Долоня (розкрита).
+
+\section{Генерація даних}
+
+Дані згенеровано з нормального розподілу:
+\begin{itemize}
+    \item \textbf{Кулак:} $w \sim N(8, 0.8)$, $h \sim N(4, 0.9)$ -- 30 зразків
+    \item \textbf{Долоня:} $w \sim N(16, 1.5)$, $h \sim N(16, 1.8)$ -- 30 зразків
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{box_examples.png}
+    \caption{Приклади обмежувальних рамок для жестів руки}
+\vspace{-0.4cm}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{data_visualization.png}
+    \caption{Розподіл даних у просторі ознак}
+\vspace{-0.4cm}
+\end{figure}
+
+\section{k-NN класифікація}
+
+Реалізовано алгоритм k-NN без використання бібліотек. Відстань -- евклідова:
+\begin{equation}
+    d(p_1, p_2) = \sqrt{(w_1-w_2)^2 + (h_1-h_2)^2}
+\end{equation}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{cc}
+\toprule
+k & Точність \\
+\midrule
+1 & 100\% \\
+3 & 100\% \\
+5 & 100\% \\
+7 & 100\% \\
+\bottomrule
+\end{tabular}
+\caption{Результати k-NN для різних k}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{knn_boundary.png}
+    \caption{Межа рішень k-NN (k=3)}
+\vspace{-0.4cm}
+\end{figure}
+
+\section{Проблема класу "Знак перемоги"}
+
+Якщо для k-NN збільшити кількість класів від 2 до 3 і додати клас \textbf{``Знак перемоги''}
+($w \sim N(10, 1.5)$, $h \sim N(12, 2.0)$), то виникають проблеми через перекриття у просторі ознак:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{victory_problem.png}
+    \caption{Перекриття класів при додаванні знаку перемоги}
+\vspace{-0.4cm}
+\end{figure}
+
+\textbf{Недоліки:}
+\begin{enumerate}
+    \item \textbf{Перекриття кластерів:} Знак перемоги має проміжні розміри
+    \item \textbf{Недостатність ознак:} Ширина/висота не описують конфігурацію пальців
+    \item \textbf{Неоднозначність:} Різні жести можуть мати однакові розміри
+\end{enumerate}
+
+\textbf{Рішення:} Додати ознаки -- кількість пальців, кути між пальцями, співвідношення сторін.
+
+\section{k-means кластеризація}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{kmeans_results.png}
+    \caption{Результати k-means для k=2,3,5}
+\vspace{-0.4cm}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{cc}
+\toprule
+k & WCSS \\
+\midrule
+2 & 196.0 \\
+3 & 131.4 \\
+5 & 96.6 \\
+\bottomrule
+\end{tabular}
+\caption{Within-Cluster Sum of Squares}
+\end{table}
+
+\section{Висновки}
+
+\begin{enumerate}
+    \item \textbf{k-NN:} Ефективний для двох класів (Кулак/Долоня) з точністю 100\%
+    \item \textbf{k-means:} k=2 найкраще відповідає природній структурі даних
+    \item \textbf{Обмеження:} 2D ознаки (ширина, висота) недостатні для розрізнення складніших жестів
+    \item \textbf{Рекомендація:} Для класифікації >2 жестів потрібні додаткові ознаки
+\end{enumerate}
+
+\end{document}

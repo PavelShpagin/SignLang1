@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.xdv
+*.out
+*.toc
+
+# Temporary downloaded tools
+tectonic_bin/
+tectonic.zip
+tectonic_assets.json
