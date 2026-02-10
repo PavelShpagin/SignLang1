@@ -1,0 +1,10 @@
+Run the analysis (no notebook):
+
+    python run_nb.py
+
+This generates all figures and prints results. To compile the report PDF:
+
+    powershell .\tools\compile_report.ps1
+
+To use the notebook instead: open hand_gesture_analysis.ipynb in Jupyter, then Run All.
+If the kernel hangs or is slow, close the notebook and use "python run_nb.py" above.
