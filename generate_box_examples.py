@@ -145,9 +145,12 @@ draw_fixed_box(ax3, 10, 14, box_w, box_h, w3, h3, title3)
 
 fig.subplots_adjust(left=0.08, right=0.96, bottom=0.12, top=0.9, wspace=0.25)
 
-# Draw titles at identical vertical positions for readability
+# Draw titles at identical vertical level (figure coords)
+y_title = 0.92
 for ax, title in zip(axes, [title1, title2, title3]):
-    ax.text(0.5, 1.05, title, transform=ax.transAxes, ha='center', va='bottom', **TITLE_STYLE)
+    pos = ax.get_position()
+    x_center = pos.x0 + pos.width / 2
+    fig.text(x_center, y_title, title, ha='center', va='bottom', transform=fig.transFigure, **TITLE_STYLE)
 
 plt.savefig('box_examples.png', dpi=300, bbox_inches='tight', pad_inches=0.2)
 plt.close()
