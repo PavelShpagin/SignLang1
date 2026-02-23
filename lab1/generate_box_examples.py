@@ -146,7 +146,7 @@ draw_fixed_box(ax3, 10, 14, box_w, box_h, w3, h3, title3)
 fig.subplots_adjust(left=0.08, right=0.96, bottom=0.12, top=0.9, wspace=0.25)
 
 # Draw titles at identical vertical level (figure coords)
-y_title = 0.92
+y_title = 0.8
 for ax, title in zip(axes, [title1, title2, title3]):
     pos = ax.get_position()
     x_center = pos.x0 + pos.width / 2
