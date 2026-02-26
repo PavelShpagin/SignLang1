@@ -1,0 +1,47 @@
+def get_finger_states(landmarks):
+    """
+    Визначає стан кожного пальця за координатами 21 точки MediaPipe.
+    Повертає список [великий, вказівний, середній, безіменний, мізинець]
+    де 1 = піднятий (відкритий), 0 = зігнутий (закритий).
+
+    Алгоритм:
+    - Великий палець: відстань tip(4)→index_MCP(5) > відстань IP(3)→index_MCP(5)
+      (розігнутий кінчик далі від основи вказівного, ніж IP-суглоб)
+    - Інші пальці: tip.y < mcp.y  (кінчик вище MCP-суглоба = основи пальця)
+      Порівняння з MCP надійніше, ніж з PIP: вимагає чіткого розгинання,
+      тому легке згинання (наприклад мізинець у жесті Ш) впевнено дає DOWN.
+    """
+    import math
+    fingers = []
+
+    # Великий палець: distance-based (works regardless of hand rotation / chirality)
+    # tip(4) farther from index MCP(5) than IP joint(3) → thumb is extended
+    d_tip = math.dist([landmarks[4].x, landmarks[4].y], [landmarks[5].x, landmarks[5].y])
+    d_ip  = math.dist([landmarks[3].x, landmarks[3].y], [landmarks[5].x, landmarks[5].y])
+    fingers.append(1 if d_tip > d_ip else 0)
+
+    # Index(8), Middle(12), Ring(16), Pinky(20)
+    # Most robust method: compare distances to the WRIST (landmark 0).
+    # When a finger is open, its tip is the furthest point from the wrist.
+    # When a finger is curled (closed), the tip tucks into the palm and becomes
+    # CLOSER to the wrist than the DIP joint (which sticks out).
+    # To ensure a slightly bent finger (like the pinky in 'Ш') registers as DOWN,
+    # we require the tip to be significantly further from the wrist than the DIP joint.
+    # We define an epsilon (threshold) based on the hand's scale (distance from wrist to middle finger MCP).
+    hand_scale = math.dist([landmarks[0].x, landmarks[0].y], [landmarks[9].x, landmarks[9].y])
+    epsilon = 0.15 * hand_scale  # Require tip to be at least 15% of hand scale further than DIP
+
+    for tip_id in [8, 12, 16, 20]:
+        dip_id = tip_id - 1
+        
+        d_tip_wrist = math.dist([landmarks[tip_id].x, landmarks[tip_id].y], [landmarks[0].x, landmarks[0].y])
+        d_dip_wrist = math.dist([landmarks[dip_id].x, landmarks[dip_id].y], [landmarks[0].x, landmarks[0].y])
+        
+        # If tip is further from wrist than the DIP joint + epsilon, the finger is truly UP.
+        # Otherwise (if it's barely further, or closer), it's considered curled/DOWN.
+        fingers.append(1 if d_tip_wrist > (d_dip_wrist + epsilon) else 0)
+
+    return fingers  # [thumb, index, middle, ring, pinky]
+
+
+

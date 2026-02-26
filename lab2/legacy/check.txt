@@ -1,0 +1,31 @@
+--- Cell 7 has get_finger_states ---
+# Функції розпізнавання жестів
+
+def get_finger_states(landmarks, image=None, w=0, h=0):
+    """
+    Визначає стан кожного пальця за координатами 21 точки MediaPipe.
+    Повертає список [великий, вказівний, середній, безіменний, мізинець]
+    де 1 = піднятий (відкритий), 0 = зігнутий (закритий).
+    """
+    import math
+    import cv2
+    fingers = []
+
+    # Великий палець: distance-based (works regardless of hand rotation / chirality)
+    d_tip = math.dist([landmarks[4].x, landmarks[4].y], [landm
+
+--- Cell 9 has run_gesture_recognition ---
+# Основний цикл розпізнавання через вебкамеру (нова MediaPipe Tasks API)
+#
+# Вихід: натисніть ПРОБІЛ або клавішу Q у вікні OpenCV
+# Якщо камера недоступна — клітинка виведе повідомлення про помилку
+
+import os
+MODEL_PATH = 'hand_landmarker.task'
+
+# Завантаження моделі якщо відсутня
+if not os.path.exists(MODEL_PATH):
+    import urllib.request
+    url = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
+    print('Завантаження моделі...'
+

@@ -1,0 +1,124 @@
+# Основний цикл розпізнавання через вебкамеру (нова MediaPipe Tasks API)
+#
+# Вихід: натисніть ПРОБІЛ або клавішу Q у вікні OpenCV
+# Якщо камера недоступна — клітинка виведе повідомлення про помилку
+
+import os
+MODEL_PATH = 'hand_landmarker.task'
+
+# Завантаження моделі якщо відсутня
+if not os.path.exists(MODEL_PATH):
+    import urllib.request
+    url = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
+    print('Завантаження моделі...')
+    urllib.request.urlretrieve(url, MODEL_PATH)
+    print('ОК')
+
+def run_gesture_recognition(model_path=MODEL_PATH):
+    """
+    Запускає розпізнавання жестів через вебкамеру.
+    Використовує нову API MediaPipe Tasks (HandLandmarker).
+    Вихід: клавіша ПРОБІЛ або Q.
+    """
+    # Налаштування HandLandmarker
+    BaseOptions  = mp_python.BaseOptions
+    HandLandmarker = mp_vision.HandLandmarker
+    HandLandmarkerOptions = mp_vision.HandLandmarkerOptions
+    RunningMode  = mp_vision.RunningMode
+
+    options = HandLandmarkerOptions(
+        base_options=BaseOptions(model_asset_path=model_path),
+        running_mode=RunningMode.IMAGE,
+        num_hands=1,
+        min_hand_detection_confidence=0.7,
+        min_hand_presence_confidence=0.7,
+        min_tracking_confidence=0.5,
+    )
+
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print('ERROR: Camera not available!')
+        return
+
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    print(f'Camera: {W}x{H} | Model: {model_path}')
+    print('Press SPACE or Q to exit')
+
+    frame_count = 0
+    sha_count = 0
+
+    with HandLandmarker.create_from_options(options) as landmarker:
+        try:
+            while True:
+                ok, frame = cap.read()
+                if not ok:
+                    break
+                frame = cv2.flip(frame, 1)   # дзеркальне відображення
+                frame_count += 1
+
+                # Детектування: конвертуємо BGR → RGB → mp.Image
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                result = landmarker.detect(mp_img)
+
+                if result.hand_landmarks:
+                    lms = result.hand_landmarks[0]   # перша рука
+
+                    # Малювання скелету
+                    draw_skeleton(frame, lms, W, H, HAND_CONNECTIONS)
+
+                    # Стан пальців та розпізнавання
+                    fingers = get_finger_states(lms, frame, W, H)
+                    is_sha  = recognize_sha(fingers)
+                    if is_sha:
+                        sha_count += 1
+
+                    # Finger status labels (ASCII only for cv2.putText)
+                    draw_finger_status(frame, fingers, x=10, y=90)
+
+                    # Number of raised fingers
+                    cv2.putText(frame, f'Open fingers: {sum(fingers)}',
+                                (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255,255,0), 2)
+
+                    # Gesture recognition result (SHA = letter Sh in Ukrainian dactylic)
+                    txt = '[SHA / letter SH]' if is_sha else ''
+                    col = (0,255,0) if is_sha else (0,0,255)
+                    bg  = (0,60,0)  if is_sha else (40,40,40)
+                    cv2.rectangle(frame, (W-260, 5), (W-5, 65), bg, -1)
+                    cv2.putText(frame, txt, (W-255, 45),
+                                cv2.FONT_HERSHEY_DUPLEX, 0.8, col, 2)
+
+                    # Console log every 30 frames
+                    if frame_count % 30 == 0:
+                        ascii_f = ['Thumb','Index','Middle','Ring','Pinky']
+                        fs = ' '.join(f'{ascii_f[i][:3]}:{f}' for i,f in enumerate(fingers))
+                        print(f'Frame {frame_count:4d}: {fs}  SHA={is_sha}')
+                else:
+                    cv2.putText(frame, 'Hand not found', (10, 55),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,255), 2)
+
+                # Footer
+                cv2.putText(frame, f'Frame {frame_count} | SPACE/Q = exit',
+                            (10, H-12), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (160,160,160), 1)
+
+                cv2.imshow('Gesture: SHA (letter Sh) | MediaPipe', frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key in (32, ord('q'), ord('Q')):
+                    break
+        finally:
+            cap.release()
+            cv2.destroyAllWindows()
+
+    pct = 100.0*sha_count/max(frame_count,1)
+    print()
+    print('=' * 40)
+    print(f'Frames processed:  {frame_count}')
+    print(f'SHA recognized:    {sha_count}')
+    print(f'Recognition rate:  {pct:.1f}%')
+    print('=' * 40)
+
+
+run_gesture_recognition()

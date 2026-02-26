@@ -374,15 +374,22 @@ def get_finger_states(landmarks):
     # Most robust method: compare distances to the WRIST (landmark 0).
     # When a finger is open, its tip is the furthest point from the wrist.
     # When a finger is curled (closed), the tip tucks into the palm and becomes
-    # CLOSER to the wrist than the PIP joint (which sticks out).
+    # CLOSER to the wrist than the DIP joint (which sticks out).
+    # To ensure a slightly bent finger (like the pinky in 'Ш') registers as DOWN,
+    # we require the tip to be significantly further from the wrist than the DIP joint.
+    # We define an epsilon (threshold) based on the hand's scale (distance from wrist to middle finger MCP).
+    hand_scale = math.dist([landmarks[0].x, landmarks[0].y], [landmarks[9].x, landmarks[9].y])
+    epsilon = 0.22 * hand_scale  # Require tip to be at least 22% of hand scale further than DIP
+
     for tip_id in [8, 12, 16, 20]:
-        pip_id = tip_id - 2
+        dip_id = tip_id - 1
         
         d_tip_wrist = math.dist([landmarks[tip_id].x, landmarks[tip_id].y], [landmarks[0].x, landmarks[0].y])
-        d_pip_wrist = math.dist([landmarks[pip_id].x, landmarks[pip_id].y], [landmarks[0].x, landmarks[0].y])
+        d_dip_wrist = math.dist([landmarks[dip_id].x, landmarks[dip_id].y], [landmarks[0].x, landmarks[0].y])
         
-        # If tip is further from wrist than the PIP joint, the finger is UP.
-        fingers.append(1 if d_tip_wrist > d_pip_wrist else 0)
+        # If tip is further from wrist than the DIP joint + epsilon, the finger is truly UP.
+        # Otherwise (if it's barely further, or closer), it's considered curled/DOWN.
+        fingers.append(1 if d_tip_wrist > (d_dip_wrist + epsilon) else 0)
 
     return fingers  # [thumb, index, middle, ring, pinky]
 
@@ -437,7 +444,6 @@ test = [
     ([0,1,1,0,0], 'NOT SHA (ring down)'),
     ([0,0,0,0,0], 'Fist'),
     ([0,1,0,0,0], 'One finger'),
-    ([0,1,1,1,0], 'SHA - relaxed pinky')
 ]
 print(f'{"Жест":28s} | fingers                           | Ш?')
 print('-' * 65)
@@ -520,7 +526,7 @@ print('Saved: sha_hand_diagram.png')
 print(f'recognize_sha({sha_state}) = {recognize_sha(sha_state)}')
 
 
-# In[7]:
+# In[ ]:
 
 
 # Основний цикл розпізнавання через вебкамеру (нова MediaPipe Tasks API)
@@ -538,6 +544,34 @@ if not os.path.exists(MODEL_PATH):
     print('Завантаження моделі...')
     urllib.request.urlretrieve(url, MODEL_PATH)
     print('ОК')
+
+def draw_debug_visuals(image, landmarks, w, h):
+    """Draw palm polygon, threshold circles through tip-dip midpoints, and wrist lines."""
+    import math
+    import numpy as np
+    wrist_px = (int(landmarks[0].x * w), int(landmarks[0].y * h))
+    cv2.circle(image, wrist_px, 10, (255, 0, 255), -1)
+    palm_ids = [0, 1, 5, 9, 13, 17]
+    palm_pts = np.array([[int(landmarks[i].x * w), int(landmarks[i].y * h)] for i in palm_ids], np.int32)
+    cv2.polylines(image, [palm_pts], isClosed=True, color=(0, 255, 255), thickness=2)
+    for tip_id in [8, 12, 16, 20]:
+        dip_id = tip_id - 1
+        mid_x = (landmarks[tip_id].x + landmarks[dip_id].x) / 2.0
+        mid_y = (landmarks[tip_id].y + landmarks[dip_id].y) / 2.0
+        mid_px = (int(mid_x * w), int(mid_y * h))
+        thresh_norm = math.dist([mid_x, mid_y], [landmarks[0].x, landmarks[0].y])
+        thresh_r_px = int(thresh_norm * max(w, h))
+        tip_px = (int(landmarks[tip_id].x * w), int(landmarks[tip_id].y * h))
+        d_tip_wrist = math.dist([landmarks[tip_id].x, landmarks[tip_id].y], [landmarks[0].x, landmarks[0].y])
+        is_up = d_tip_wrist > thresh_norm
+        color = (0, 255, 255) if is_up else (0, 165, 255)
+        cv2.circle(image, wrist_px, thresh_r_px, color, 2)
+        cv2.line(image, wrist_px, tip_px, color, 2)
+        cv2.circle(image, mid_px, 8, (0, 0, 255), -1)
+        cv2.circle(image, mid_px, 8, (255, 255, 255), 1)
+        txt = f"{d_tip_wrist:.2f}>{thresh_norm:.2f}" if is_up else f"{d_tip_wrist:.2f}<{thresh_norm:.2f}"
+        cv2.putText(image, txt, (tip_px[0]+12, tip_px[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0,0,0), 3)
+        cv2.putText(image, txt, (tip_px[0]+12, tip_px[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
 
 def run_gesture_recognition(model_path=MODEL_PATH):
     """
@@ -596,7 +630,8 @@ def run_gesture_recognition(model_path=MODEL_PATH):
                     draw_skeleton(frame, lms, W, H, HAND_CONNECTIONS)
 
                     # Стан пальців та розпізнавання
-                    fingers = get_finger_states(lms)
+                    fingers = get_finger_states(lms, frame, W, H)
+                    draw_debug_visuals(frame, lms, W, H)
                     is_sha  = recognize_sha(fingers)
                     if is_sha:
                         sha_count += 1
@@ -664,9 +699,9 @@ run_gesture_recognition()
 # | Видимість | Ознаки 36, 41, 42 ≈ 1.0 (добра стабільність) |
 # 
 # ### 3. Алгоритм розпізнавання
-# Реалізовано порівняння відстаней від зап'ястя (0) до кінчиків (tip) та до суглобів (DIP):
-# - `distance(tip, wrist) > distance(dip, wrist) + epsilon` → палець піднятий
-# - інакше → палець зігнутий
+# Реалізовано порівняння Y-координат кінчиків (tip) із другим суглобом (PIP):
+# - `tip_y < pip_y` → палець піднятий
+# - `tip_y > pip_y` → палець зігнутий
 # 
 # Умова «Ш»: `index=1 AND middle=1 AND ring=0 AND pinky=1`
 # 

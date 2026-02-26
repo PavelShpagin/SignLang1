@@ -1,0 +1,105 @@
+# Функції розпізнавання жестів
+
+def get_finger_states(landmarks):
+    """
+    Визначає стан кожного пальця за координатами 21 точки MediaPipe.
+    Повертає список [великий, вказівний, середній, безіменний, мізинець]
+    де 1 = піднятий (відкритий), 0 = зігнутий (закритий).
+
+    Алгоритм:
+    - Великий палець: відстань tip(4)→index_MCP(5) > відстань IP(3)→index_MCP(5)
+      (розігнутий кінчик далі від основи вказівного, ніж IP-суглоб)
+    - Інші пальці: tip.y < mcp.y  (кінчик вище MCP-суглоба = основи пальця)
+      Порівняння з MCP надійніше, ніж з PIP: вимагає чіткого розгинання,
+      тому легке згинання (наприклад мізинець у жесті Ш) впевнено дає DOWN.
+    """
+    import math
+    fingers = []
+
+    # Великий палець: distance-based (works regardless of hand rotation / chirality)
+    # tip(4) farther from index MCP(5) than IP joint(3) → thumb is extended
+    d_tip = math.dist([landmarks[4].x, landmarks[4].y], [landmarks[5].x, landmarks[5].y])
+    d_ip  = math.dist([landmarks[3].x, landmarks[3].y], [landmarks[5].x, landmarks[5].y])
+    fingers.append(1 if d_tip > d_ip else 0)
+
+    # Index(8), Middle(12), Ring(16), Pinky(20)
+    # Most robust method: compare distances to the WRIST (landmark 0).
+    # When a finger is open, its tip is the furthest point from the wrist.
+    # When a finger is curled (closed), the tip tucks into the palm and becomes
+    # CLOSER to the wrist than the DIP joint (which sticks out).
+    # To ensure a slightly bent finger (like the pinky in 'Ш') registers as DOWN,
+    # we require the tip to be significantly further from the wrist than the DIP joint.
+    # We define an epsilon (threshold) based on the hand's scale (distance from wrist to middle finger MCP).
+    hand_scale = math.dist([landmarks[0].x, landmarks[0].y], [landmarks[9].x, landmarks[9].y])
+    epsilon = 0.15 * hand_scale  # Require tip to be at least 15% of hand scale further than DIP
+
+    for tip_id in [8, 12, 16, 20]:
+        dip_id = tip_id - 1
+        
+        d_tip_wrist = math.dist([landmarks[tip_id].x, landmarks[tip_id].y], [landmarks[0].x, landmarks[0].y])
+        d_dip_wrist = math.dist([landmarks[dip_id].x, landmarks[dip_id].y], [landmarks[0].x, landmarks[0].y])
+        
+        # If tip is further from wrist than the DIP joint + epsilon, the finger is truly UP.
+        # Otherwise (if it's barely further, or closer), it's considered curled/DOWN.
+        fingers.append(1 if d_tip_wrist > (d_dip_wrist + epsilon) else 0)
+
+    return fingers  # [thumb, index, middle, ring, pinky]
+
+
+def recognize_sha(fingers):
+    """
+    Розпізнає жест «Ш» (підтверджено даними матеріалу, ознаки 24-28):
+      feature 25 ~ 0.8  → Вказівний   [1] = 1 (UP)
+      feature 26 ~ 0.96 → Середній    [2] = 1 (UP)
+      feature 27 ~ 0.67 → Безіменний  [3] = 1 (UP)
+      feature 28 ~ 0.02 → Мізинець    [4] = 0 (DOWN)
+      Великий [0] не перевіряється (X-порівняння нестабільне).
+    """
+    return (fingers[1] == 1 and   # вказівний UP
+            fingers[2] == 1 and   # середній  UP
+            fingers[3] == 1 and   # безіменний UP
+            fingers[4] == 0)      # мізинець  DOWN
+
+
+def draw_skeleton(image, landmarks, w, h, connections, dot_r=5, line_w=2):
+    """Малює скелет руки за нормованими координатами MediaPipe."""
+    # З'єднання
+    for a, b in connections:
+        ax, ay = int(landmarks[a].x * w), int(landmarks[a].y * h)
+        bx, by = int(landmarks[b].x * w), int(landmarks[b].y * h)
+        cv2.line(image, (ax, ay), (bx, by), (220, 220, 220), line_w)
+    # Точки
+    for i, lm in enumerate(landmarks):
+        cx, cy = int(lm.x * w), int(lm.y * h)
+        color = (0, 255, 0) if i in TIP_IDS else (255, 100, 100)
+        cv2.circle(image, (cx, cy), dot_r, color, -1)
+        cv2.circle(image, (cx, cy), dot_r, (0, 0, 0), 1)  # чорна рамка
+
+
+def draw_finger_status(image, fingers, x=10, y=100):
+    """Draws finger state labels on the frame (ASCII only - OpenCV limitation)."""
+    # ASCII names for cv2.putText (no Unicode support in OpenCV)
+    ascii_names = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky']
+    for i, (name, f) in enumerate(zip(ascii_names, fingers)):
+        state = 'UP  ' if f else 'DOWN'
+        color = (50, 220, 50) if f else (50, 50, 220)
+        cv2.putText(image, f'{name}: {state}',
+                    (x, y + i*28), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
+
+
+# Перевірка на синтетичних прикладах
+print('Перевірка логіки recognize_sha():')
+test = [
+    ([0,1,1,1,0], 'SHA - correct (index+middle+ring up, pinky down)'),
+    ([1,1,1,1,0], 'SHA - correct (thumb up, still valid)'),
+    ([0,1,1,1,1], 'NOT SHA (pinky up)'),
+    ([0,1,1,0,0], 'NOT SHA (ring down)'),
+    ([0,0,0,0,0], 'Fist'),
+    ([0,1,0,0,0], 'One finger'),
+]
+print(f'{"Жест":28s} | fingers                           | Ш?')
+print('-' * 65)
+for fingers, name in test:
+    fs = ' '.join(f'{FINGER_NAMES[i][:3]}:{f}' for i, f in enumerate(fingers))
+    res = recognize_sha(fingers)
+    print(f'{name:28s} | {fs:33s} | {"✓" if res else "✗"}')
