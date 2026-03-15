@@ -135,7 +135,6 @@ pdf.body_text(
 )
 
 # Section 5: Autoencoder
-pdf.add_page()
 pdf.section_title('5. Автокодувальник (Autoencoder)')
 
 pdf.body_text(
@@ -193,7 +192,6 @@ pdf.body_text(
 )
 
 # Section 6: Oversampling
-pdf.add_page()
 pdf.section_title('6. Oversampling (RandomOverSampler, SMOTE, ADASYN)')
 
 pdf.body_text(
@@ -216,7 +214,6 @@ pdf.body_text(
 )
 
 # Section 7: Optional - Classifier comparison
-pdf.add_page()
 pdf.section_title('7. Опціональне завдання: порівняння класифікаторів')
 
 pdf.body_text(
@@ -266,7 +263,6 @@ pdf.body_text(
 )
 
 # Conclusions
-pdf.add_page()
 pdf.section_title('8. Висновки')
 
 pdf.body_text(
