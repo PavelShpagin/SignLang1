@@ -1,0 +1,6 @@
+.env
+*.pickle
+.ipynb_checkpoints/
+__pycache__/
+fonts/
+settings.json

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "jupyter": {
+      "command": "python",
+      "args": ["-m", "jupyter_mcp_server"],
+      "env": {
+        "JUPYTER_BASE_URL": "http://localhost:8888",
+        "JUPYTER_TOKEN": "160bbc069e0cf408a11d7c8671be92650469ea832b3e3138"
+      }
+    }
+  }
+}
